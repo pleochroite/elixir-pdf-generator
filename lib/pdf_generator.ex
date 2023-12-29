@@ -140,7 +140,7 @@ defmodule PdfGenerator do
     options = Keyword.merge(defaults(), opts)
 
     generator     = options[:generator]
-
+    filename      = options[:filename]
     open_password = options[:open_password]
     edit_password = options[:edit_password]
     delete_temp   = options[:delete_temporary]
@@ -151,7 +151,7 @@ defmodule PdfGenerator do
          {:cmd, {stderr, exit_code}} <- {:cmd, System.cmd(executable, arguments, stderr_to_stdout: true)},       # unfortunately wkhtmltopdf returns 0 on errors as well :-/
          {:result_ok, true, _err}    <- {:result_ok, result_ok(generator, stderr, exit_code), stderr},           # so we inspect stderr instead
          {:rm, :ok}                  <- {:rm, maybe_delete_temp(delete_temp, html_file)},
-         {:ok, encrypted_pdf}        <- maybe_encrypt_pdf(pdf_file, open_password, edit_password) do
+         {:ok, encrypted_pdf}        <- maybe_encrypt_pdf(pdf_file, open_password, edit_password, random_if_undef(filename)) do
       {:ok, encrypted_pdf}
     else
       {:error, reason}     -> {:error, reason}
@@ -259,6 +259,12 @@ defmodule PdfGenerator do
   defp maybe_delete_temp(true,    file), do: File.rm(file)
   defp maybe_delete_temp(_falsy, _file), do: :ok
 
+  def maybe_encrypt_pdf(pdf_file, open_password, edit_password, filename)
+  when is_binary(open_password) or is_binary(edit_password) do
+    encrypt_pdf(pdf_file, open_password, edit_password, filename)
+  end
+
+
   def maybe_encrypt_pdf(pdf_file, open_password, edit_password)
   when is_binary(open_password) or is_binary(edit_password) do
     encrypt_pdf(pdf_file, open_password, edit_password)
@@ -298,6 +304,27 @@ defmodule PdfGenerator do
       _ ->  {:error, {:pdftk, stderr}}
     end
   end
+
+  def encrypt_pdf(pdf_input_path, user_pw, owner_pw, filename ) do
+    pdftk_path      = PdfGenerator.PathAgent.get.pdftk_path
+    pdf_output_file = Path.join System.tmp_dir, filename <> ".pdf"
+
+    pdftk_args = [
+      pdf_input_path,
+      "output", pdf_output_file,
+      "owner_pw", random_if_undef(owner_pw),
+      "user_pw",  random_if_undef(user_pw),
+      "encrypt_128bit", "allow", "Printing", "CopyContents"
+    ]
+
+    {stderr, exit_code} = System.cmd(pdftk_path, pdftk_args, stderr_to_stdout: true)
+
+    case exit_code do
+      0 ->  {:ok, pdf_output_file}
+      _ ->  {:error, {:pdftk, stderr}}
+    end
+  end
+
 
   defp random_if_undef(nil), do: PdfGenerator.Random.string(16)
   defp random_if_undef(any), do: any
