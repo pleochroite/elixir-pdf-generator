@@ -151,7 +151,7 @@ defmodule PdfGenerator do
          {:cmd, {stderr, exit_code}} <- {:cmd, System.cmd(executable, arguments, stderr_to_stdout: true)},       # unfortunately wkhtmltopdf returns 0 on errors as well :-/
          {:result_ok, true, _err}    <- {:result_ok, result_ok(generator, stderr, exit_code), stderr},           # so we inspect stderr instead
          {:rm, :ok}                  <- {:rm, maybe_delete_temp(delete_temp, html_file)},
-         {:ok, encrypted_pdf}        <- maybe_encrypt_pdf(pdf_file, open_password, edit_password, random_if_undef(filename)) do
+         {:ok, encrypted_pdf}        <- maybe_encrypt_pdf(pdf_file, open_password, edit_password, filename) do
       {:ok, encrypted_pdf}
     else
       {:error, reason}     -> {:error, reason}
